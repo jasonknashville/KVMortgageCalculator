@@ -19,9 +19,7 @@
   .team{height:64px}
   .remax{height:76px}
   h1{font-size:1.35rem;margin:6px 0 8px;color:var(--brand-blue);text-align:center}
-  .mode-desc{{
-    text-align:center;margin:6px 0 12px;font-size:.95rem;color:#444
-  }}
+  .mode-desc{text-align:center;margin:6px 0 12px;font-size:.95rem;color:#444}
   .tabs{display:flex;background:#f0f3ff;border-radius:12px;padding:4px;gap:6px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
   .tab{padding:8px 14px;border-radius:10px;cursor:pointer;user-select:none;font-weight:600;color:var(--brand-blue)}
   .tab.active{background:white;box-shadow:0 1px 0 1px rgba(0,0,0,.04);color:var(--brand-red)}
@@ -46,6 +44,7 @@
   .ghost{background:#efeffe;color:#30237a}
   .foot{margin-top:16px;color:#666;font-size:.85rem;text-align:center;border-top:1px solid #eee;padding-top:10px}
   .hide{display:none!important}
+  .hint{font-size:.8rem;color:#666;margin-top:4px}
 </style>
 </head>
 <body>
@@ -141,8 +140,8 @@
           <input id="currentMortgage" type="number" inputmode="decimal" value="1800" min="0" step="25" />
         </div>
         <div class="col-8">
-          <label for="addCashRent">Additional Down Payment ($)</label>
-          <input id="addCashRent" type="number" inputmode="decimal" value="0" min="0" step="500" />
+          <label for="downRent">Down Payment ($) <span class="hint">5% of price: <span id="downHint">$26,250</span></span></label>
+          <input id="downRent" type="number" inputmode="decimal" value="26250" min="0" step="500" />
         </div>
         <div class="col-12 eq-box">
           <div class="eq-item">Net Rental Cash Flow: <b id="netRent">$0</b></div>
@@ -186,6 +185,8 @@ function monthlyPI(loan, annualRatePct, years){ var r=annualRatePct/100/12; var 
 function num(id){ return parseFloat(document.getElementById(id).value||0); }
 function setText(id, val){ document.getElementById(id).textContent = val; }
 
+var userEditedDown = false;
+
 function visible(mode){
   document.getElementById('sell-fields').classList.toggle('hide', mode!=='sell');
   document.getElementById('rental-fields').classList.toggle('hide', mode!=='rental');
@@ -193,6 +194,16 @@ function visible(mode){
   document.getElementById('tab-rental').classList.toggle('active', mode==='rental');
   document.getElementById('monthlyTitle').textContent = (mode==='rental' ? 'New Home Monthly (All-in) & Effective After Rent' : 'Monthly Payment (All-in)');
   document.getElementById('modeDesc').textContent = (mode==='rental' ? 'See how rental income could offset your new home’s payment.' : 'Estimate your next home’s payment using your current equity.');
+}
+
+function updateDownHint(){
+  var price = num('price');
+  var suggested = price * 0.05;
+  setText('downHint', fmt(suggested));
+  if(!userEditedDown){
+    var el = document.getElementById('downRent');
+    if(el) el.value = Math.round(suggested);
+  }
 }
 
 function compute(){
@@ -207,7 +218,7 @@ function compute(){
     down = Math.min(price, equity + addCashSell);
     setText('eqVal', fmt(equity)); setText('cashValSell', fmt(addCashSell)); setText('appliedDown', fmt(down));
   } else {
-    var addCashRent=num('addCashRent'); down = Math.min(price, addCashRent);
+    var downRent=num('downRent'); down = Math.min(price, downRent);
   }
 
   var loan=Math.max(price-down,0), ltv=loan/Math.max(price,1);
@@ -239,7 +250,7 @@ function compute(){
 
 function paramsFromState(){
   var mode=document.getElementById('tab-sell').classList.contains('active')?'sell':'rental';
-  var ids=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','addCashRent'];
+  var ids=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','downRent'];
   var q=new URLSearchParams(); q.set('mode',mode);
   ids.forEach(function(id){ var el=document.getElementById(id); if(el) q.set(id,String(el.value)); });
   return q.toString();
@@ -247,26 +258,27 @@ function paramsFromState(){
 function applyStateFromParams(){
   var q=new URL(window.location.href).searchParams;
   var mode=q.get('mode'); if(mode) visible(mode);
-  var ids=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','addCashRent'];
+  var ids=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','downRent'];
   ids.forEach(function(id){ if(q.has(id) && document.getElementById(id)) document.getElementById(id).value=q.get(id); });
+  updateDownHint();
 }
 
 (function init(){
-  document.getElementById('tab-sell').addEventListener('click',function(){{ visible('sell'); compute(); }});
-  document.getElementById('tab-rental').addEventListener('click',function(){{ visible('rental'); compute(); }});
-  var allIds=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','addCashRent'];
+  document.getElementById('tab-sell').addEventListener('click',function(){ visible('sell'); compute(); });
+  document.getElementById('tab-rental').addEventListener('click',function(){ visible('rental'); compute(); });
+  var allIds=['price','rate','term','taxPct','insAnnual','hoa','pmiPct','currValue','currBalance','addCashSell','expectedRent','expensePct','currentMortgage','downRent'];
   document.getElementById('calcBtn').addEventListener('click', compute);
-  allIds.forEach(function(id){{ var el=document.getElementById(id); if(el) el.addEventListener('input', compute); }});
+  allIds.forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('input', function(){ if(id==='downRent') userEditedDown=true; if(id==='price') updateDownHint(); compute(); }); });
 
-  document.getElementById('copyLink').addEventListener('click', async function(){{
+  document.getElementById('copyLink').addEventListener('click', async function(){
     var base=location.href.split('?')[0]; var link=base+'?'+paramsFromState();
-    try{{ await navigator.clipboard.writeText(link); alert('Sharable link copied!'); }}catch(e){{ prompt('Copy this link:', link); }}
-  }});
-  document.getElementById('copyEmbed').addEventListener('click', async function(){{
+    try{ await navigator.clipboard.writeText(link); alert('Sharable link copied!'); }catch(e){ prompt('Copy this link:', link); }
+  });
+  document.getElementById('copyEmbed').addEventListener('click', async function(){
     var base=location.href.split('?')[0]; var src=base+'?'+paramsFromState();
     var code='<iframe src=\"'+src+'\" width=\"100%\" height=\"760\" style=\"border:0;max-width:980px\" loading=\"lazy\"></iframe>';
-    try{{ await navigator.clipboard.writeText(code); alert('<iframe> embed code copied!'); }}catch(e){{ prompt('Copy this embed code:', code); }}
-  }});
+    try{ await navigator.clipboard.writeText(code); alert('<iframe> embed code copied!'); }catch(e){ prompt('Copy this embed code:', code); }
+  });
 
   applyStateFromParams();
   visible('sell');
